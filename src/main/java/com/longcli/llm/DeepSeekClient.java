@@ -45,6 +45,9 @@ public class DeepSeekClient implements LlmClient {
             ObjectNode msgNode = messagesArray.addObject();
             msgNode.put("role", msg.role());
             msgNode.put("content", msg.content());
+            if ("tool".equals(msg.role()) && msg.toolCallId() != null && !msg.toolCallId().isBlank()) {
+                msgNode.put("tool_call_id", msg.toolCallId());
+            }
         }
 
         if (tools != null && !tools.isEmpty()) {

@@ -13,25 +13,25 @@ public interface LlmClient {
 
     String getProviderName();
 
-    record Message(String role, String content) {
+    record Message(String role, String content, String toolCallId) {
         public static Message system(String content) {
-            return new Message("system", content);
+            return new Message("system", content, null);
         }
 
         public static Message user(String content) {
-            return new Message("user", content);
+            return new Message("user", content, null);
         }
 
         public static Message assistant(String content) {
-            return new Message("assistant", content);
+            return new Message("assistant", content, null);
         }
 
         public static Message assistant(String content, List<ToolCall> toolCalls) {
-            return new Message("assistant", content);
+            return new Message("assistant", content, null);
         }
 
         public static Message tool(String toolCallId, String content) {
-            return new Message("tool", content);
+            return new Message("tool", content, toolCallId);
         }
     }
 
