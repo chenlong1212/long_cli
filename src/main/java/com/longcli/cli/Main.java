@@ -9,7 +9,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.InputStreamReader;
 
-public class Main {222
+public class Main {
     private static final String VERSION = "1.0";
     private static final String ENV_FILE = ".env";
 
