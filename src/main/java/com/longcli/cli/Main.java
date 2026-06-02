@@ -10,7 +10,7 @@ import java.io.FileReader;
 import java.io.InputStreamReader;
 
 public class Main {
-    private static final String VERSION = "1.0.0";
+    private static final String VERSION = "1.0";
     private static final String ENV_FILE = ".env";
 
     public static void main(String[] args) {
@@ -67,20 +67,7 @@ public class Main {
     }
 
     private static void printBanner() {
-        System.out.println();
-        System.out.println("╔══════════════════════════════════════════════════════════╗");
-        System.out.println("║                                                          ║");
-        System.out.println("║   ██████╗  █████╗ ██╗      ██████╗██╗     ██╗            ║");
-        System.out.println("║   ██╔══██╗██╔══██╗██║     ██╔════╝██║     ██║            ║");
-        System.out.println("║   ██████╔╝███████║██║     ██║     ██║     ██║            ║");
-        System.out.println("║   ██╔═══╝ ██╔══██║██║     ██║     ██║     ██║            ║");
-        System.out.println("║   ██║     ██║  ██║███████╗╚██████╗███████╗██║            ║");
-        System.out.println("║   ╚═╝     ╚═╝  ╚═╝╚══════╝ ╚═════╝╚══════╝╚═╝            ║");
-        System.out.println("║                                                          ║");
-        System.out.println("║              LongCLI v" + VERSION + " - Java Agent CLI        ║");
-        System.out.println("║                                                          ║");
-        System.out.println("╚══════════════════════════════════════════════════════════╝");
-        System.out.println();
+        System.out.println("              LongCLI v" + VERSION + " - Java Agent CLI        ");
     }
 
     private static String loadApiKey() {
