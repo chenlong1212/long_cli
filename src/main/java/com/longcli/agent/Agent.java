@@ -59,6 +59,8 @@ public class Agent {
                     System.out.println(response.content());
                     System.out.println();
 
+                    conversationHistory.add(LlmClient.Message.assistant(response.content(), response.toolCalls()));
+
                     for (LlmClient.ToolCall toolCall : response.toolCalls()) {
                         String toolName = toolCall.function().name();
                         String toolArgs = toolCall.function().arguments();
