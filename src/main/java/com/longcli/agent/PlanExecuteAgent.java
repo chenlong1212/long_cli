@@ -12,7 +12,17 @@ import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
- * Plan-and-Execute Agent - 先规划后执行
+ * Plan-and-Execute Agent - 先规划后执行的智能代理
+ *
+ * 工作流程：
+ * 1. Planner创建执行计划
+ * 2. 按拓扑排序顺序执行任务
+ * 3. 无依赖的任务可以并行执行
+ * 4. 失败时支持重新规划
+ *
+ * 与Agent（ReAct）的对比：
+ * - ReAct：每走一步问一次LLM（灵活但成本高）
+ * - Plan-and-Execute：先想清楚再动手（高效且可预期）
  */
 public class PlanExecuteAgent {
     private static final int MAX_TASK_ITERATIONS = 5;
@@ -21,16 +31,20 @@ public class PlanExecuteAgent {
     private final ToolRegistry toolRegistry;
     private final Planner planner;
 
+    /**
+     * 单个任务的执行提示词
+     * 告诉LLM当前任务是什么、上下文是什么
+     */
     private static final String TASK_PROMPT = """
-        你是一个任务执行专家。请根据以下信息执行任务。
-        
-        任务类型: {taskType}
-        任务描述: {taskDescription}
-        
-        {context}
-        
-        请使用适当的工具完成任务。完成后给出执行结果。
-        """;
+            你是一个任务执行专家。请根据以下信息执行任务。
+            
+            任务类型: {taskType}
+            任务描述: {taskDescription}
+            
+            {context}
+            
+            请使用适当的工具完成任务。完成后给出执行结果。
+            """;
 
     public PlanExecuteAgent(LlmClient llmClient) {
         this(llmClient, new ToolRegistry());
@@ -42,6 +56,10 @@ public class PlanExecuteAgent {
         this.planner = new Planner(llmClient);
     }
 
+    /**
+     * 执行用户任务（带用户确认）
+     * 注意：此方法会等待用户输入确认计划
+     */
     public String run(String userInput) {
         try {
             ExecutionPlan plan = planner.createPlan(userInput);
@@ -58,6 +76,9 @@ public class PlanExecuteAgent {
         }
     }
 
+    /**
+     * 执行用户任务（自动执行，不等待确认）
+     */
     public String runWithAutoExecute(String userInput) {
         try {
             ExecutionPlan plan = planner.createPlan(userInput);
@@ -71,17 +92,25 @@ public class PlanExecuteAgent {
         }
     }
 
+    /**
+     * 核心执行逻辑
+     * 按计划执行任务，支持并行执行和失败重试
+     */
     private String executePlan(ExecutionPlan plan) {
         plan.markStarted();
         StringBuilder finalResult = new StringBuilder();
 
+        // 执行循环
         while (true) {
+            // 获取当前可执行的任务
             List<Task> executableTasks = getExecutableTasksInOrder(plan);
             if (executableTasks.isEmpty()) break;
 
+            // 获取下一个执行批次
             List<Task> batch = getNextBatch(plan, executableTasks);
             
             if (batch.size() == 1) {
+                // 单任务执行
                 Task task = batch.get(0);
                 System.out.println("▶️ 执行任务 [" + task.getId() + "]: " + task.getDescription());
                 task.markStarted();
@@ -94,6 +123,7 @@ public class PlanExecuteAgent {
                     task.markFailed(e.getMessage());
                     System.out.println("❌ 失败 [" + task.getId() + "]: " + e.getMessage());
                     
+                    // 如果进度小于50%，尝试重新规划
                     if (plan.getProgress() < 0.5) {
                         try {
                             System.out.println("🔄 尝试重新规划...");
@@ -106,12 +136,14 @@ public class PlanExecuteAgent {
                     finalResult.append("任务 ").append(task.getId()).append(" 失败: ").append(e.getMessage());
                 }
             } else {
+                // 多任务并行执行
                 System.out.println("⚡ 并行执行 " + batch.size() + " 个任务: " + 
                     batch.stream().map(Task::getId).reduce((a, b) -> a + ", " + b).orElse(""));
                 
                 ExecutorService executor = Executors.newFixedThreadPool(Math.min(batch.size(), 4));
                 List<Future<TaskRunResult>> futures = new ArrayList<>();
                 
+                // 提交所有任务
                 for (Task task : batch) {
                     task.markStarted();
                     System.out.println("▶️ [" + task.getId() + "]: " + task.getDescription());
@@ -120,6 +152,7 @@ public class PlanExecuteAgent {
                 
                 executor.shutdown();
                 
+                // 收集执行结果
                 for (int i = 0; i < batch.size(); i++) {
                     Task task = batch.get(i);
                     try {
@@ -135,11 +168,13 @@ public class PlanExecuteAgent {
             }
         }
 
+        // 检查是否有任务无法执行
         if (!plan.isAllCompleted() && !plan.hasFailed()) {
             plan.markFailed();
             return "⚠️ 计划未能继续推进";
         }
 
+        // 检查是否有任务失败
         if (plan.hasFailed()) {
             plan.markFailed();
             return "⚠️ 计划部分完成，有任务失败。\n" + finalResult;
@@ -149,6 +184,9 @@ public class PlanExecuteAgent {
         return buildFinalResult(plan);
     }
 
+    /**
+     * 获取可执行的任务列表（按拓扑排序顺序）
+     */
     private List<Task> getExecutableTasksInOrder(ExecutionPlan plan) {
         Set<String> executableIds = plan.getExecutableTasks().stream()
                 .map(Task::getId)
@@ -160,6 +198,10 @@ public class PlanExecuteAgent {
                 .toList();
     }
 
+    /**
+     * 获取下一个可以并行执行的任务批次
+     * 确保批次内的任务相互之间没有依赖关系
+     */
     private List<Task> getNextBatch(ExecutionPlan plan, List<Task> executableTasks) {
         if (executableTasks.isEmpty()) return executableTasks;
         
@@ -180,6 +222,12 @@ public class PlanExecuteAgent {
                 .toList();
     }
 
+    /**
+     * 执行单个任务
+     * @param plan 所属的执行计划
+     * @param task 要执行的任务
+     * @return 任务执行结果
+     */
     private TaskRunResult executeTask(ExecutionPlan plan, Task task) throws IOException {
         String context = buildTaskContext(plan, task);
         String prompt = TASK_PROMPT
@@ -187,6 +235,7 @@ public class PlanExecuteAgent {
                 .replace("{taskDescription}", task.getDescription())
                 .replace("{context}", context);
 
+        // 构建消息上下文
         List<LlmClient.Message> messages = new ArrayList<>();
         messages.add(LlmClient.Message.system(prompt));
         messages.add(LlmClient.Message.user("请执行此任务。"));
@@ -194,6 +243,7 @@ public class PlanExecuteAgent {
         StringBuilder allResults = new StringBuilder();
         int iteration = 0;
 
+        // 执行循环（支持多轮工具调用）
         while (iteration < MAX_TASK_ITERATIONS) {
             iteration++;
             
@@ -202,8 +252,10 @@ public class PlanExecuteAgent {
             if (response.hasToolCalls()) {
                 System.out.println("🧠 思考: " + truncate(response.content(), 100));
                 
+                // 记录LLM的回复（包含tool_calls）
                 messages.add(LlmClient.Message.assistant(response.content(), response.toolCalls()));
 
+                // 执行所有工具调用
                 for (LlmClient.ToolCall toolCall : response.toolCalls()) {
                     String toolName = toolCall.function().name();
                     String toolArgs = toolCall.function().arguments();
@@ -212,11 +264,14 @@ public class PlanExecuteAgent {
 
                     String toolResult = toolRegistry.executeTool(toolName, toolArgs);
                     allResults.append(toolResult).append("\n");
+                    
+                    // 记录工具执行结果（必须带上tool_call_id）
                     messages.add(LlmClient.Message.tool(toolCall.id(), toolResult));
                     
                     System.out.println("📋 结果: " + truncate(toolResult, 100));
                 }
             } else {
+                // LLM不再调用工具，说明任务完成
                 String answer = response.content();
                 if (answer != null && !answer.isBlank()) {
                     allResults.append(answer);
@@ -228,11 +283,16 @@ public class PlanExecuteAgent {
         return new TaskRunResult(allResults.toString().trim());
     }
 
+    /**
+     * 构建单个任务的执行上下文
+     * 包含：目标、任务描述、依赖任务的结果
+     */
     private String buildTaskContext(ExecutionPlan plan, Task task) {
         StringBuilder context = new StringBuilder();
         context.append("总目标: ").append(plan.getGoal()).append("\n\n");
         context.append("当前任务: ").append(task.getDescription()).append("\n\n");
 
+        // 包含依赖任务的结果
         if (!task.getDependencies().isEmpty()) {
             context.append("依赖任务结果:\n");
             for (String depId : task.getDependencies()) {
@@ -255,15 +315,18 @@ public class PlanExecuteAgent {
         }
 
         return """
-            你是一个智能助手，能够使用工具完成任务。
-            
-            可用工具:
-            """ + toolList + """
-            
-            注意: 工具的参数必须是有效的JSON格式。
-            """;
+                你是一个智能助手，能够使用工具完成任务。
+                
+                可用工具:
+                """ + toolList + """
+                
+                注意: 工具的参数必须是有效的JSON格式。
+                """;
     }
 
+    /**
+     * 构建最终结果摘要
+     */
     private String buildFinalResult(ExecutionPlan plan) {
         StringBuilder result = new StringBuilder();
         result.append("✅ 计划执行完成！\n\n");
@@ -281,6 +344,9 @@ public class PlanExecuteAgent {
         return result.toString();
     }
 
+    /**
+     * 截断字符串
+     */
     private String truncate(String text, int maxLen) {
         if (text == null) return "";
         String cleaned = text.replace("\n", " ").replace("\r", " ").trim();
@@ -288,5 +354,8 @@ public class PlanExecuteAgent {
         return cleaned.substring(0, maxLen - 3) + "...";
     }
 
+    /**
+     * 任务执行结果记录
+     */
     private record TaskRunResult(String content) {}
 }
