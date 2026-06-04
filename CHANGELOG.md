@@ -2,6 +2,37 @@
 
 所有重要的项目更新都会在此文件中记录。
 
+## [3.0.0] - 2024-XX-XX
+
+### 新增功能
+
+#### 记忆系统
+- 新增 `Memory` 接口，统一记忆存取抽象
+- 新增 `MemoryEntry`，表示记忆条目数据结构
+- 新增 `MemoryManager`，记忆系统门面类
+- 新增 `ConversationMemory`，短期记忆管理（当前对话）
+- 新增 `LongTermMemory`，长期记忆管理（跨对话持久化）
+- 新增 `ContextCompressor`，上下文压缩器（Map-Reduce摘要）
+- 新增 `TokenBudget`，Token预算管理器
+- 新增 `MemoryRetriever`，记忆检索器（关键词匹配）
+- 支持记忆检索和自动注入上下文
+- 支持超出预算时自动压缩摘要
+- 支持长期记忆持久化到磁盘（~/.longcli/memory/）
+
+#### CLI命令
+- 新增 `/memory` 查看记忆系统状态
+- 新增 `/memory list` 列出所有长期记忆
+- 新增 `/memory search <关键词>` 搜索相关记忆
+- 新增 `/memory delete <id>` 删除指定记忆
+- 新增 `/memory clear` 清空长期记忆
+- 新增 `/save <事实>` 保存事实到长期记忆
+
+### 改进
+
+- Agent 和 PlanExecuteAgent 集成 MemoryManager
+- 每次对话自动记录用户消息、助手回复、工具结果
+- 自动检索相关长期记忆注入上下文
+
 ## [2.0.0] - 2024-XX-XX
 
 ### 新增功能

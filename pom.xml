@@ -7,11 +7,11 @@
 
     <groupId>com.longcli</groupId>
     <artifactId>longcli</artifactId>
-    <version>2.0.0</version>
+    <version>3.0.0</version>
     <packaging>jar</packaging>
 
-    <name>LongCLI v2</name>
-    <description>A Java Agent CLI with ReAct and Plan-and-Execute modes, powered by DeepSeek API</description>
+    <name>LongCLI v3</name>
+    <description>A Java Agent CLI with ReAct, Plan-and-Execute modes and Memory System, powered by DeepSeek API</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>

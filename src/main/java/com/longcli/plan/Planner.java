@@ -3,6 +3,7 @@ package com.longcli.plan;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.longcli.llm.LlmClient;
+import com.longcli.memory.MemoryManager;
 
 import java.io.IOException;
 import java.util.*;
@@ -23,7 +24,7 @@ public class Planner {
      * 给LLM的规划提示词
      * 告诉LLM如何输出JSON格式的执行计划
      */
-    private static final String PLANNER_PROMPT = """
+    private static final String BASE_PLANNER_PROMPT = """
             你是一个任务规划专家。当用户提出复杂任务时，你需要将其分解为具体的执行步骤。
             
             请按照以下JSON格式输出执行计划：
@@ -60,9 +61,15 @@ public class Planner {
             """;
 
     private final LlmClient llmClient;
+    private final MemoryManager memoryManager;
 
     public Planner(LlmClient llmClient) {
+        this(llmClient, null);
+    }
+
+    public Planner(LlmClient llmClient, MemoryManager memoryManager) {
         this.llmClient = llmClient;
+        this.memoryManager = memoryManager;
     }
 
     /**
@@ -81,10 +88,20 @@ public class Planner {
         }
 
         // 构建消息上下文
-        List<LlmClient.Message> messages = Arrays.asList(
-                LlmClient.Message.system(PLANNER_PROMPT),
-                LlmClient.Message.user("请为以下任务制定执行计划：\n" + goal)
-        );
+        List<LlmClient.Message> messages = new ArrayList<>();
+        
+        // 构造包含记忆的系统提示词
+        String prompt = BASE_PLANNER_PROMPT;
+        if (memoryManager != null) {
+            String memoryContext = memoryManager.buildContextForQuery(goal, 1500);
+            if (!memoryContext.isEmpty()) {
+                prompt += "\n\n## 相关记忆（仅供参考）:\n" + memoryContext;
+                System.out.println("🧠 检索到相关记忆并已注入上下文\n");
+            }
+        }
+        
+        messages.add(LlmClient.Message.system(prompt));
+        messages.add(LlmClient.Message.user("请为以下任务制定执行计划：\n" + goal));
 
         // 调用LLM生成计划
         LlmClient.ChatResponse response = llmClient.chat(messages, null);

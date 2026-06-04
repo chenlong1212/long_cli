@@ -36,7 +36,7 @@ public class DeepSeekClient implements LlmClient {
 
     @Override
     public ChatResponse chat(List<Message> messages, List<Tool> tools) throws IOException {
-        ObjectNode requestBody = mapper.createObjectNode();  // 构造一个 JSON 请求体，用来调用大模型接口，并开启流式返回结果。
+        ObjectNode requestBody = mapper.createObjectNode();
         requestBody.put("model", model);
         requestBody.put("stream", true);
 
@@ -48,6 +48,17 @@ public class DeepSeekClient implements LlmClient {
             if ("tool".equals(msg.role()) && msg.toolCallId() != null && !msg.toolCallId().isBlank()) {
                 msgNode.put("tool_call_id", msg.toolCallId());
             }                      
+            if ("assistant".equals(msg.role()) && msg.toolCalls() != null && !msg.toolCalls().isEmpty()) {
+                ArrayNode toolCallsArray = msgNode.putArray("tool_calls");
+                for (ToolCall tc : msg.toolCalls()) {
+                    ObjectNode tcNode = toolCallsArray.addObject();
+                    tcNode.put("id", tc.id());
+                    tcNode.put("type", "function");
+                    ObjectNode functionNode = tcNode.putObject("function");
+                    functionNode.put("name", tc.function().name());
+                    functionNode.put("arguments", tc.function().arguments());
+                }
+            }
         }
 
         if (tools != null && !tools.isEmpty()) {
